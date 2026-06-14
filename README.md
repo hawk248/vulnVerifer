@@ -1,4 +1,4 @@
-# Your App
+# Distributed Vulnerability Verifer
 
 > Generated with **Understand Studio** — an AI app builder by [Understand Tech](https://understand.tech).
 
