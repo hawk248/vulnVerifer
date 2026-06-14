@@ -19,37 +19,21 @@ Existing bug bounty platforms are generic. They provide submission forms and tri
 The system follows a three-tier architecture:
 
 ┌──────────────────────────────────┐
-
-│ React Frontend │
-
-│ (submission, list, detail, │
-
-│ blockchain view, MetaMask) │
-
+│ React Frontend                   │
+│ (submission, list, detail,       │
+│ blockchain view, MetaMask)       │
 └────────────┬─────────────────────┘
-
-│ HTTP / SSE
-
+             │ HTTPS
 ┌────────────▼─────────────────────┐
-
-│ FastAPI Backend │
-
-│ (routing, background tasks, │
-
-│ AI orchestration, Web3) │
-
+│ FastAPI Backend                  │
+│ (routing, background tasks,      │
+│ AI orchestration, Web3)          │
 └────────────┬─────────────────────┘
-
-│ async motor driver
-
+             │ async motor driver
 ┌────────────▼─────────────────────┐
-
-│ MongoDB │
-
-│ (findings, hashes, blockchain │
-
-│ metadata, analysis results) │
-
+│ MongoDB                          │
+│ (findings, hashes, blockchain    │
+│ metadata, analysis results)      │
 └──────────────────────────────────┘
 
 The backend exposes a REST API consumed by the frontend. Long-running verification tasks are dispatched as FastAPI background tasks so that the submission endpoint returns immediately with a pending status, and the client polls for updates.
