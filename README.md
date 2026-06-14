@@ -1,191 +1,240 @@
-**A Dual-Review AI and Blockchain System for Vulnerability Disclosure in Matter Protocol Implementations**
+# Your App
 
-**Abstract**
+> Generated with **Understand Studio** — an AI app builder by [Understand Tech](https://understand.tech).
 
-This paper describes the design and implementation of a vulnerability submission and verification platform tailored to the Matter IoT security standard. The system combines asynchronous dual-track AI review — one reviewer grounded in the Matter specification, a second in the ConnectedHomeIP SDK — with immutable on-chain recording of confirmed findings. A multi-layer duplicate detection mechanism prevents redundant submissions. The result is a trustworthy, auditable bug bounty pipeline that bridges human researchers, AI analysis, and decentralized ledger immutability.
+A full-stack web app: **React + Vite** (frontend), **FastAPI** (backend), **MongoDB** (database). AI features are wired through Understand Tech's API or directly through Anthropic, depending on how you run it.
 
-**1. Introduction**
+This README explains how to run the app locally, what's in the repo, and how to switch between the two AI modes after download.
 
-The Matter protocol, maintained by the Connectivity Standards Alliance (CSA), defines a unified security and interoperability model for IoT devices. As adoption accelerates, coordinated vulnerability disclosure becomes critical: researchers must have a reliable channel to report findings, and maintainers must have a trustworthy mechanism to evaluate them consistently and record confirmed issues without the possibility of tampering.
+---
 
-Existing bug bounty platforms are generic. They provide submission forms and triage queues but no domain knowledge, no automated technical validation, and no permanent public record. This system addresses all three gaps:
+## Quick start
 
-1. **Domain-specific AI review** evaluates each submission against both the Matter specification and its reference SDK implementation.
-2. **Blockchain recording** creates a tamper-evident, time-stamped ledger entry for every confirmed finding.
-3. **Semantic duplicate detection** prevents redundant findings from polluting the corpus.
+### Prerequisites
 
-**2. System Architecture**
+You need **Docker** with the Compose plugin. The easiest path on each OS:
 
-The system follows a three-tier architecture:
+| OS | What to install |
+|---|---|
+| **macOS** | [Docker Desktop for Mac](https://docs.docker.com/desktop/install/mac-install/) |
+| **Windows** | [Docker Desktop for Windows](https://docs.docker.com/desktop/install/windows-install/) (WSL2 backend recommended) |
+| **Linux** | [Docker Engine](https://docs.docker.com/engine/install/) + the [Compose plugin](https://docs.docker.com/compose/install/linux/) |
 
-┌──────────────────────────────────┐
-│ React Frontend                   │
-│ (submission, list, detail,       │
-│ blockchain view, MetaMask)       │
-└────────────┬─────────────────────┘
-             │ HTTPS
-┌────────────▼─────────────────────┐
-│ FastAPI Backend                  │
-│ (routing, background tasks,      │
-│ AI orchestration, Web3)          │
-└────────────┬─────────────────────┘
-             │ async motor driver
-┌────────────▼─────────────────────┐
-│ MongoDB                          │
-│ (findings, hashes, blockchain    │
-│ metadata, analysis results)      │
-└──────────────────────────────────┘
+Verify with `docker --version` and `docker compose version` — both should print versions, no errors.
 
-The backend exposes a REST API consumed by the frontend. Long-running verification tasks are dispatched as FastAPI background tasks so that the submission endpoint returns immediately with a pending status, and the client polls for updates.
+### Run the app
 
-**3. Data Model**
+#### macOS / Linux
 
-Each finding is stored as a single document with the following logical structure:
+```bash
+# 1. Make sure Docker is running (Docker Desktop, or `sudo systemctl start docker` on Linux).
+# 2. From the repo root:
+docker compose up --build
+```
 
-| **Field** | **Type** | **Description** |
-| --- | --- | --- |
-| finding\_id | string | Unique identifier |
-| title | string | Human-readable title |
-| content | string | Full vulnerability description |
-| content\_hash | string | SHA-256 of normalized content |
-| researcher\_name | string | Submitter name |
-| researcher\_email | string | Submitter email |
-| submitter\_eth\_address | string (opt.) | Linked Ethereum wallet |
-| status | enum | pending → verifying → verified / failed |
-| spec\_verdict | enum | VALID / INVALID / NEEDS\_FURTHER\_REVIEW |
-| sdk\_verdict | enum | Same |
-| overall\_verdict | enum | VALID only if both pass |
-| spec\_analysis | string | Narrative from specification reviewer |
-| sdk\_analysis | string | Narrative from SDK reviewer |
-| blockchain\_status | enum | pending / recorded / failed |
-| tx\_hash | string (opt.) | On-chain transaction hash |
-| block\_number | int (opt.) | Block number of recording |
-| explorer\_url | string (opt.) | Block explorer deep-link |
-| created\_at | datetime | Submission timestamp |
-| recorded\_at | datetime | On-chain recording timestamp |
+#### Windows (PowerShell or Command Prompt)
 
-A unique index on content\_hash enforces database-level deduplication as a final safety net.
+```powershell
+# 1. Start Docker Desktop.
+# 2. From the repo root:
+docker compose up --build
+```
 
-**4. Submission Pipeline**
+> If `.env` is missing on first run, copy it from `.env.example` (if present) and fill in the values described in **Environment** below.
 
-**4.1 Input Modes**
+The app starts on:
 
-Researchers may submit findings in two forms:
+- **Frontend:** [http://localhost:5173](http://localhost:5173) (configurable via `FRONTEND_PORT`)
+- **Backend:** [http://localhost:8000](http://localhost:8000) (configurable via `BACKEND_PORT`)
 
-* **Plain text** — entered directly in the submission form.
-* **PDF upload** — the backend extracts text from all pages using pypdf and concatenates them into a single content string for analysis.
+The frontend hot-reloads on file changes. The backend reloads on Python file changes.
 
-Both paths normalize to the same content field before hashing or AI processing.
+### Stopping the app
 
-**4.2 Duplicate Detection (Three Layers)**
+```bash
+docker compose down
+```
 
-Duplicate suppression runs before any AI work is triggered:
+To also delete the MongoDB volume (loses all stored data — **be careful**):
 
-1. **Hash check.** The SHA-256 of the normalized content is computed. If a document with the same content\_hash already exists in the database, the submission is immediately rejected with a reference to the existing finding — no AI calls are made.
-2. **Semantic check.** For near-duplicates (paraphrased descriptions, reorganized sections), the hash alone is insufficient. The backend invokes an AI similarity comparison between the candidate submission and recent findings, identifying functionally equivalent reports even when the surface text differs.
-3. **Database constraint.** The unique index on content\_hash acts as a transactional backstop against any race condition in steps 1 and 2.
+```bash
+docker compose down -v
+```
 
-When a duplicate is detected at any layer, the submitter is shown a direct link to the original finding.
+---
 
-**5. AI Verification Pipeline**
+## Environment
 
-Verification runs as a background task immediately after a finding is persisted in pending state. Two independent reviewers execute in parallel.
+Configuration lives in `.env` at the repo root.
 
-**5.1 Matter Specification Reviewer**
+> ⚠️ **Heads up if you just downloaded this app:** the `.env` was seeded for use *inside Studio*. To run it on your own machine you'll need to edit one or two variables — see ["Running the downloaded app"](#running-the-downloaded-app) below. Otherwise Claude features will fail with `Connection refused` on the first AI call.
 
-This reviewer is grounded in the full CSA Matter 1.5 specification via a pre-configured Understand Tech assistant (l1MngDEBJB8zxO5B7Dj7). The assistant has access to the specification corpus and evaluates:
+### What's in `.env`
 
-* Whether the claimed vulnerability corresponds to a real mechanism described in the specification.
-* The severity and attack surface (physical access, network-adjacent, remote).
-* Whether the specification already prescribes a mitigation.
+Studio seeded these variables at project creation:
 
-The reviewer returns a structured verdict: VALID, INVALID, or NEEDS\_FURTHER\_REVIEW, together with a free-text analysis narrative.
+| Variable | Purpose | Needed after download? |
+|---|---|---|
+| `UT_API_KEY` | Per-app Understand Tech v3 API key. Auths UT assistants, "Understand AI" secure LLM, and catalog models (GPT-4.1, Claude Sonnet 4.6, Mistral Medium, Gemini 3 Flash, DeepSeek V3, xAI Grok 4.1 Fast). | Keep if you want UT features |
+| `UNDERSTAND_API_URL` | UT v3 endpoint. Defaults to `https://developer.understand.tech`. | Keep if you keep `UT_API_KEY` |
+| `UT_LLM_BASE_URL` | Studio's local proxy for Claude calls (`http://host.docker.internal:8001/...`). Only resolves while Studio is running on the same host. | **Remove** — see below |
+| `UT_ENCRYPTION_SECRET` | Air-gap projects only. | Keep if present |
 
-**5.2 Matter SDK Reviewer**
+### While iterating inside Studio
 
-This reviewer uses Claude (claude-sonnet-4-6) with a system prompt encoding deep expertise in the ConnectedHomeIP reference SDK. It evaluates:
+You don't need to do anything. The seeded `.env` works as-is. Claude calls route through Studio's proxy; UT v3 calls go directly to UT.
 
-* Whether the described behavior is reproducible in the SDK's implementation of Secure Channel, commissioning flows, credential management, or transport security.
-* The practical exploitability given the SDK's current codebase.
-* Any relevant SDK component or module implicated.
+### Running the downloaded app
 
-It also returns a structured VALID / INVALID / NEEDS\_FURTHER\_REVIEW verdict plus narrative.
+`UT_LLM_BASE_URL=http://host.docker.internal:8001/...` points at Studio's orchestrator. **That orchestrator is not in your downloaded ZIP.** On any other machine, the URL has nothing on the other end and the Anthropic SDK will fail to connect.
 
-**5.3 Verdict Aggregation**
+The fix is always the same: **remove `UT_LLM_BASE_URL` from `.env`.** That's the one critical step. The code auto-detects standalone mode the moment that variable is empty.
 
-overall\_verdict = VALID iff spec\_verdict == VALID
+Then pick the scenario that matches what you want to do:
 
-and sdk\_verdict == VALID
+#### Option A — UT customer running their own copy (most common)
 
-Any INVALID or NEEDS\_FURTHER\_REVIEW from either reviewer yields a non-VALID overall verdict. Only VALID overall findings proceed to blockchain recording.
+You keep your UT account, you also bring your own Anthropic key:
 
-**5.4 Re-verification**
+```bash
+# .env
+UT_API_KEY=<your existing UT v3 API key>
+UNDERSTAND_API_URL=https://developer.understand.tech
+ANTHROPIC_API_KEY=sk-ant-...
 
-A POST /api/findings/{finding\_id}/reverify endpoint allows maintainers to re-trigger the full verification pipeline for any finding — useful when the AI assistants are updated or when a researcher has clarified their submission.
+# Remove or comment out:
+# UT_LLM_BASE_URL=...
+```
 
-**6. Blockchain Recording**
+Result: Claude features hit `api.anthropic.com` with your Anthropic key. UT features (assistants, "Understand AI", catalog models) hit UT directly with your UT key.
 
-**6.1 Rationale**
+#### Option B — Pure Anthropic (no UT)
 
-On-chain recording provides three properties that a centralized database cannot:
+You're not a UT customer, you just want the scaffold:
 
-* **Immutability** — a confirmed finding cannot be silently deleted or retroactively modified.
-* **Timestamping** — the block timestamp is generated by consensus, not by the platform operator.
-* **Public auditability** — any party can independently verify the existence and content hash of a recorded finding without trusting this system.
+```bash
+# .env
+ANTHROPIC_API_KEY=sk-ant-...
 
-**6.2 Mechanism**
+# Remove or comment out:
+# UT_API_KEY=...
+# UT_LLM_BASE_URL=...
+# UNDERSTAND_API_URL=...
+```
 
-When overall\_verdict is set to VALID, the backend submits a transaction to a configured EVM-compatible network (Polygon Amoy testnet or Ethereum Sepolia) containing:
+Result: Claude features work. UT features error out (no UT key) — that's fine if your app doesn't use them.
 
-* finding\_id — internal identifier.
-* content\_hash — SHA-256 of the submission content.
-* submitter\_eth\_address — researcher's Ethereum address (if provided).
-* title — human-readable title.
+#### Option C — UT-only (no direct Anthropic)
 
-The resulting tx\_hash, block\_number, and explorer\_url are written back to the finding document.
+You have a UT account and you only use UT features:
 
-**6.3 Researcher Ownership Claims**
+```bash
+# .env
+UT_API_KEY=<your existing UT v3 API key>
+UNDERSTAND_API_URL=https://developer.understand.tech
 
-Researchers who provided an Ethereum address may sign a challenge message via MetaMask (EIP-191 personal sign). The signature is verified server-side, cryptographically linking the finding to a wallet the researcher controls. This establishes a verifiable provenance claim without the platform holding private keys.
+# Remove or comment out:
+# UT_LLM_BASE_URL=...
+# (no ANTHROPIC_API_KEY needed)
+```
 
-**7. Frontend**
+Result: UT features work. Any call to `claude_examples.*` errors with `No AI credentials configured` — by design. If your app doesn't import from `claude_examples`, you'll never see that error.
 
-**7.1 Views**
+> **Mode selection is automatic.** The code picks standalone whenever `ANTHROPIC_API_KEY` is set AND `UT_LLM_BASE_URL` is empty/unset; otherwise it tries Studio mode. No flag to flip.
 
-| **View** | **Purpose** |
-| --- | --- |
-| **Finding List** | Grid of cards; search by title/researcher, filter by severity |
-| **Submit Form** | Text or PDF input, optional MetaMask connection, duplicate warning |
-| **Finding Detail** | Full analysis, both AI verdicts, blockchain status and explorer link |
-| **Blockchain View** | Visual chain of confirmed on-chain findings; filterable by researcher email |
+---
 
-**7.2 Real-time Updates**
+## Project structure
 
-The client polls the detail endpoint every 5 seconds while a finding is in pending or verifying state, updating the UI as the background task progresses through the verification pipeline.
+```
+.
+├── backend/
+│   ├── app/
+│   │   ├── __init__.py
+│   │   ├── main.py             # FastAPI entrypoint — routes + lifespan-managed Mongo
+│   │   ├── config.py           # Settings (pydantic-settings reads .env)
+│   │   ├── claude_examples.py  # AI cookbook: chat, stream, vision, tools (Anthropic SDK)
+│   │   ├── ut_ai_examples.py   # AI cookbook for the "Understand AI" secure LLM
+│   │   ├── ut_api_v3.py        # UT API v3 client: assistants, workflows, catalog models
+│   │   ├── ut_usage.py         # Usage reporting helpers (Claude calls only)
+│   │   ├── error_tracker.py    # In-memory error ring buffer + middleware
+│   │   └── analytics.py        # Telemetry
+│   ├── Dockerfile
+│   └── requirements.txt        # fastapi, uvicorn, motor, pydantic-settings, anthropic, httpx
+├── frontend/
+│   ├── src/
+│   │   ├── main.tsx            # React entrypoint
+│   │   ├── App.tsx             # Root component — your UI starts here
+│   │   ├── index.css           # Tailwind directives + HSL design tokens (light + dark)
+│   │   ├── components/ui/      # Pre-vendored shadcn primitives (button, card, input, ...)
+│   │   └── lib/utils.ts        # cn() helper (clsx + tailwind-merge)
+│   ├── package.json            # React 18 + TypeScript + Vite + Tailwind + Lucide
+│   ├── tailwind.config.ts
+│   ├── vite.config.ts          # Proxies /api/* → http://backend:8000
+│   └── Dockerfile
+├── docker-compose.yml          # backend + frontend + mongo, joined on the project network
+├── .env                        # Configuration (see Environment)
+├── LICENSE                     # You pick — see below
+└── README.md                   # This file
+```
 
-**7.3 MetaMask Integration**
+---
 
-A custom useMetaMask() hook manages wallet connection state, account retrieval, and message signing. The wallet address is optional at submission time but required to sign an ownership claim after a finding is confirmed.
+## Tech stack
 
-**8. API Reference**
+- **Frontend** — React 18, TypeScript, Vite, Tailwind CSS, shadcn-style UI primitives, Lucide icons, Inter Variable font
+- **Backend** — FastAPI, Pydantic v2, Motor (async MongoDB driver), httpx, Anthropic SDK
+- **Database** — MongoDB 7
+- **AI** — Anthropic Claude (in either AI mode) plus the Understand Tech API v3 surface (Mode 1 only) for UT assistants, "Understand AI" secure LLM, and the UT model catalog
 
-| **Method** | **Path** | **Description** |
-| --- | --- | --- |
-| POST | /api/findings | Submit a new finding (text or PDF) |
-| GET | /api/findings | List findings (filters: email, verdict, blockchain\_only) |
-| GET | /api/findings/{id} | Retrieve a single finding with full analysis |
-| POST | /api/findings/{id}/reverify | Re-run the verification pipeline |
-| GET | /api/health | Service health check |
+---
 
-**9. Security Considerations**
+## Customizing
 
-* **Content hashing** uses SHA-256. Collisions are computationally infeasible; the hash is treated as a canonical fingerprint for deduplication and on-chain recording.
-* **Wallet signatures** use EIP-191 (personal\_sign), preventing replay across different message contexts. The backend verifies the recovered address matches the stored submitter\_eth\_address.
-* **AI verdict integrity** — both reviewers are invoked independently. Neither can influence the other's analysis. The aggregation rule (both must be VALID) is enforced server-side and cannot be overridden by the frontend.
-* **PDF extraction** is performed server-side; no client-side PDF parsing occurs, preventing malicious PDF payloads from executing in the browser.
+Edit any file freely. The frontend hot-reloads; the backend auto-reloads on Python file changes. Backend dependency changes (new entries in `requirements.txt`) require:
 
-**10. Conclusion**
+```bash
+docker compose up --build backend
+```
 
-This system demonstrates that domain-specific AI review and decentralized ledger recording can be practically combined into a coherent vulnerability disclosure pipeline. The dual-reviewer architecture reduces false positives relative to single-model review; blockchain recording provides tamper-evident provenance that a centralized database cannot; and multi-layer duplicate detection keeps the corpus clean as submissions accumulate. The design is extensible — additional specialist reviewers (e.g., a firmware-focused reviewer, a cryptographic protocol reviewer) can be added to the verification pipeline without restructuring the data model or API.
+Frontend dependency changes (new entries in `package.json`):
 
-*System implemented on FastAPI (Python), React (TypeScript), MongoDB, Web3.py, Anthropic Claude, and the Understand Tech LLM gateway. Network targets: Polygon Amoy / Ethereum Sepolia.*
+```bash
+docker compose up --build frontend
+```
+
+For AI features, **read the cookbook files first**:
+
+- [`backend/app/claude_examples.py`](backend/app/claude_examples.py) — working snippets for chat, streaming, vision, and tool use through the Anthropic SDK.
+- [`backend/app/ut_api_v3.py`](backend/app/ut_api_v3.py) — UT API v3 client (assistants, catalog models).
+- [`backend/app/ut_ai_examples.py`](backend/app/ut_ai_examples.py) — chat helpers for the "Understand AI" secure LLM.
+
+---
+
+## Generated by Understand Studio
+
+This app was scaffolded by **[Understand Studio](https://understand.tech)** — an AI app builder by **[Understand Tech](https://understand.tech)**.
+
+Once you've downloaded this code, **you own it completely**. Understand Tech retains no rights to your generated output, your data, or your customers'.
+
+If you keep building inside Studio you also get:
+
+- AI-driven iteration ("add an admin page", "wire chat to this assistant", …)
+- Live preview at a sharable URL
+- GitHub auto-sync
+- Release locking (signed tarball + SBOM + vuln scan)
+
+---
+
+## License
+
+This repo ships with a **placeholder `LICENSE` file**. Pick the license that fits how you want others to use your code, then replace `LICENSE` with the chosen license's full text.
+
+Common choices:
+
+- **[MIT](https://opensource.org/licenses/MIT)** — most permissive; anyone can use, modify, distribute (with attribution). Simple, common for app code.
+- **[Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0)** — permissive like MIT plus an explicit patent grant. Enterprise-friendly.
+- **[GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.en.html)** — copyleft; derivatives must also be open-source under GPL.
+- **Proprietary** — write your own terms; the code stays yours.
+
+Not sure? [choosealicense.com](https://choosealicense.com/) walks you through it in 90 seconds.
