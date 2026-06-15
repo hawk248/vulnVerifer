@@ -224,17 +224,3 @@ If you keep building inside Studio you also get:
 - GitHub auto-sync
 - Release locking (signed tarball + SBOM + vuln scan)
 
----
-
-## License
-
-This repo ships with a **placeholder `LICENSE` file**. Pick the license that fits how you want others to use your code, then replace `LICENSE` with the chosen license's full text.
-
-Common choices:
-
-- **[MIT](https://opensource.org/licenses/MIT)** — most permissive; anyone can use, modify, distribute (with attribution). Simple, common for app code.
-- **[Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0)** — permissive like MIT plus an explicit patent grant. Enterprise-friendly.
-- **[GPL-3.0](https://www.gnu.org/licenses/gpl-3.0.en.html)** — copyleft; derivatives must also be open-source under GPL.
-- **Proprietary** — write your own terms; the code stays yours.
-
-Not sure? [choosealicense.com](https://choosealicense.com/) walks you through it in 90 seconds.
